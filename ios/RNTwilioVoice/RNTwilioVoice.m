@@ -595,4 +595,11 @@ RCT_REMAP_METHOD(getActiveCall,
   }
 }
 
+- (void)provider:(CXProvider *)provider performPlayDTMFCallAction:(CXPlayDTMFCallAction *)action {
+  if (self.call && self.call.state == TVOCallStateConnected) {
+    RCTLogInfo(@"SendDigits %@", action.digits);
+    [self.call sendDigits:action.digits];
+  }
+}
+
 @end
