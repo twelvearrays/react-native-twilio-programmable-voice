@@ -20,6 +20,11 @@
 @property (nonatomic, strong) void(^callKitCompletionCallback)(BOOL);
 @property (nonatomic, strong) CXProvider *callKitProvider;
 @property (nonatomic, strong) CXCallController *callKitCallController;
+
+//Add
+@property (nonatomic, strong) TVODefaultAudioDevice *audioDevice;
+
+
 @end
 
 @implementation RNTwilioVoice {
@@ -34,6 +39,7 @@ NSString * const StateConnecting = @"CONNECTING";
 NSString * const StateConnected = @"CONNECTED";
 NSString * const StateDisconnected = @"DISCONNECTED";
 NSString * const StateRejected = @"REJECTED";
+NSString * const To = @"+19033520328";
 
 - (dispatch_queue_t)methodQueue
 {
@@ -65,6 +71,7 @@ RCT_EXPORT_METHOD(initWithAccessToken:(NSString *)token) {
 
 RCT_EXPORT_METHOD(initWithAccessTokenUrl:(NSString *)tokenUrl) {
   _tokenUrl = tokenUrl;
+    NSLog(@"Twilio - initWithAccessTokenUrl %@", _tokenUrl);
   [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(handleAppTerminateNotification) name:UIApplicationWillTerminateNotification object:nil];
   [self initPushRegistry];
 }
@@ -86,16 +93,16 @@ RCT_EXPORT_METHOD(configureCallKit: (NSDictionary *)params) {
     _callKitProvider = [[CXProvider alloc] initWithConfiguration:configuration];
     [_callKitProvider setDelegate:self queue:nil];
 
-    NSLog(@"CallKit Initialized");
+    NSLog(@"Twilio - CallKit Initialized");
 
     self.callKitCallController = [[CXCallController alloc] init];
   }
 }
 
 RCT_EXPORT_METHOD(connect: (NSDictionary *)params) {
-  NSLog(@"Calling phone number %@", [params valueForKey:@"To"]);
+  NSLog(@"Twilio - Calling phone number %@", [params valueForKey:@"To"]);
 
-//  [TwilioVoice setLogLevel:TVOLogLevelVerbose];
+  //[TwilioVoice setLogLevel:TVOLogLevelDebug];
 
   UIDevice* device = [UIDevice currentDevice];
   device.proximityMonitoringEnabled = YES;
@@ -111,12 +118,12 @@ RCT_EXPORT_METHOD(connect: (NSDictionary *)params) {
 }
 
 RCT_EXPORT_METHOD(disconnect) {
-  NSLog(@"Disconnecting call");
+  NSLog(@"Twilio - Disconnecting call");
   [self performEndCallActionWithUUID:self.call.uuid];
 }
 
 RCT_EXPORT_METHOD(setMuted: (BOOL *)muted) {
-  NSLog(@"Mute/UnMute call");
+  NSLog(@"Twilio - Mute/UnMute call");
   self.call.muted = muted;
 }
 
@@ -126,22 +133,22 @@ RCT_EXPORT_METHOD(setSpeakerPhone: (BOOL *)speaker) {
 
 RCT_EXPORT_METHOD(sendDigits: (NSString *)digits){
   if (self.call && self.call.state == TVOCallStateConnected) {
-    NSLog(@"SendDigits %@", digits);
+    NSLog(@"Twilio - SendDigits %@", digits);
     [self.call sendDigits:digits];
   }
 }
 
 RCT_EXPORT_METHOD(unregister){
-  NSLog(@"unregister");
+  NSLog(@"Twilio - unregister");
   NSString *accessToken = [self fetchAccessToken];
 
   [TwilioVoice unregisterWithAccessToken:accessToken
                                               deviceToken:self.deviceTokenString
                                                completion:^(NSError * _Nullable error) {
                                                  if (error) {
-                                                   NSLog(@"An error occurred while unregistering: %@", [error localizedDescription]);
+                                                   NSLog(@"Twilio - An error occurred while unregistering: %@", [error localizedDescription]);
                                                  } else {
-                                                   NSLog(@"Successfully unregistered for VoIP push notifications.");
+                                                   NSLog(@"Twilio - Successfully unregistered for VoIP push notifications.");
                                                  }
                                                }];
 
@@ -162,13 +169,14 @@ RCT_REMAP_METHOD(getActiveCall,
     if (self.callInvite.to){
       [params setObject:self.callInvite.to forKey:@"to"];
     }
-    if (self.callInvite.state == TVOCallInviteStatePending) {
-      [params setObject:StatePending forKey:@"call_state"];
-    } else if (self.callInvite.state == TVOCallInviteStateCanceled) {
-      [params setObject:StateDisconnected forKey:@"call_state"];
-    } else if (self.callInvite.state == TVOCallInviteStateRejected) {
-      [params setObject:StateRejected forKey:@"call_state"];
-    }
+// No callInvite state
+//    if (self.callInvite.state == TVOCallInviteStatePending) {
+//      [params setObject:StatePending forKey:@"call_state"];
+//    } else if (self.callInvite.state == TVOCallInviteStateCanceled) {
+//      [params setObject:StateDisconnected forKey:@"call_state"];
+//    } else if (self.callInvite.state == TVOCallInviteStateRejected) {
+//      [params setObject:StateRejected forKey:@"call_state"];
+//    }
     resolve(params);
   } else if (self.call) {
     if (self.call.sid) {
@@ -197,10 +205,15 @@ RCT_REMAP_METHOD(getActiveCall,
   self.voipRegistry = [[PKPushRegistry alloc] initWithQueue:dispatch_get_main_queue()];
   self.voipRegistry.delegate = self;
   self.voipRegistry.desiredPushTypes = [NSSet setWithObject:PKPushTypeVoIP];
+   
+  self.audioDevice = [TVODefaultAudioDevice audioDevice];
+  TwilioVoice.audioDevice = self.audioDevice;
+    
 }
 
 - (NSString *)fetchAccessToken {
   //No Changes
+     NSLog(@"Twilio - Calling phone number %@", _tokenUrl);
   if (_tokenUrl) {
     NSString *accessToken = [NSString stringWithContentsOfURL:[NSURL URLWithString:_tokenUrl]
                                                      encoding:NSUTF8StringEncoding
@@ -213,7 +226,7 @@ RCT_REMAP_METHOD(getActiveCall,
 
 #pragma mark - PKPushRegistryDelegate
 - (void)pushRegistry:(PKPushRegistry *)registry didUpdatePushCredentials:(PKPushCredentials *)credentials forType:(NSString *)type {
-  NSLog(@"pushRegistry:didUpdatePushCredentials:forType");
+  NSLog(@"Twilio - pushRegistry:didUpdatePushCredentials:forType");
 
   if ([type isEqualToString:PKPushTypeVoIP]) {
     
@@ -233,13 +246,13 @@ RCT_REMAP_METHOD(getActiveCall,
                                               deviceToken:self.deviceTokenString
                                                completion:^(NSError *error) {
                                                  if (error) {
-                                                   NSLog(@"An error occurred while registering: %@", [error localizedDescription]);
+                                                   NSLog(@"Twilio - An error occurred while registering: %@", [error localizedDescription]);
                                                    NSMutableDictionary *params = [[NSMutableDictionary alloc] init];
                                                    [params setObject:[error localizedDescription] forKey:@"err"];
 
                                                    [self sendEventWithName:@"deviceNotReady" body:params];
                                                  } else {
-                                                   NSLog(@"Successfully registered for VoIP push notifications.");
+                                                   NSLog(@"Twilio - Successfully registered for VoIP push notifications.");
                                                    [self sendEventWithName:@"deviceReady" body:nil];
                                                  }
                                                }];
@@ -247,7 +260,7 @@ RCT_REMAP_METHOD(getActiveCall,
 }
 
 - (void)pushRegistry:(PKPushRegistry *)registry didInvalidatePushTokenForType:(PKPushType)type {
-  NSLog(@"pushRegistry:didInvalidatePushTokenForType");
+  NSLog(@"Twilio - pushRegistry:didInvalidatePushTokenForType");
 
   if ([type isEqualToString:PKPushTypeVoIP]) {
     NSString *accessToken = [self fetchAccessToken];
@@ -256,9 +269,9 @@ RCT_REMAP_METHOD(getActiveCall,
                                                 deviceToken:self.deviceTokenString
                                                  completion:^(NSError * _Nullable error) {
                                                    if (error) {
-                                                     NSLog(@"An error occurred while unregistering: %@", [error localizedDescription]);
+                                                     NSLog(@"Twilio - An error occurred while unregistering: %@", [error localizedDescription]);
                                                    } else {
-                                                     NSLog(@"Successfully unregistered for VoIP push notifications.");
+                                                     NSLog(@"Twilio - Successfully unregistered for VoIP push notifications.");
                                                    }
                                                  }];
 
@@ -270,7 +283,7 @@ RCT_REMAP_METHOD(getActiveCall,
 didReceiveIncomingPushWithPayload:(PKPushPayload *)payload
              forType:(NSString *)type
 withCompletionHandler:(void (^)(void))completion {
-   NSLog(@"pushRegistry:didReceiveIncomingPushWithPayload:forType:withCompletionHandler:");
+   NSLog(@"Twilio - pushRegistry:didReceiveIncomingPushWithPayload:forType:withCompletionHandler:");
 
   // Save for later when the notification is properly handled.
     self.incomingPushCompletionCallback = completion;
@@ -284,7 +297,7 @@ withCompletionHandler:(void (^)(void))completion {
   	    if ([type isEqualToString:PKPushTypeVoIP]) {
         // The Voice SDK will use main queue to invoke `cancelledCallInviteReceived:error` when delegate queue is not passed
         if (![TwilioVoice handleNotification:payload.dictionaryPayload delegate:self delegateQueue:nil]) {
-            NSLog(@"This is not a valid Twilio Voice notification.");
+            NSLog(@"Twilio - This is not a valid Twilio Voice notification.");
         }
     }
     if ([[NSProcessInfo processInfo] operatingSystemVersion].majorVersion < 13) {
@@ -315,7 +328,7 @@ withCompletionHandler:(void (^)(void))completion {
      * provide you a `TVOCallInvite` object. Report the incoming call to CallKit upon receiving this callback.
      */
     
-    NSLog(@"callInviteReceived:");
+    NSLog(@"Twilio - callInviteReceived:");
 
 //    if (callInvite.state == TVOCallInviteStatePending) {
 //      [self handleCallInviteReceived:callInvite];
@@ -324,13 +337,13 @@ withCompletionHandler:(void (^)(void))completion {
 //    }
     //TODO: return this to React Native
     if (self.callInvite) {
-        NSLog(@"A CallInvite is already in progress. Ignoring the incoming CallInvite from %@", callInvite.from);
+        NSLog(@"Twilio - A CallInvite is already in progress. Ignoring the incoming CallInvite from %@", callInvite.from);
         if ([[NSProcessInfo processInfo] operatingSystemVersion].majorVersion < 13) {
             [self incomingPushHandled];
         }
         return;
     } else if (self.call) {
-        NSLog(@"Already an active call. Ignoring the incoming CallInvite from %@", callInvite.from);
+        NSLog(@"Twilio - Already an active call. Ignoring the incoming CallInvite from %@", callInvite.from);
         if ([[NSProcessInfo processInfo] operatingSystemVersion].majorVersion < 13) {
             [self incomingPushHandled];
         }
@@ -339,7 +352,7 @@ withCompletionHandler:(void (^)(void))completion {
     
     self.callInvite = callInvite;
     
-    NSString *from = @"Voice Bot";
+    NSString *from = @"Twilio - Voice Bot";
     if (callInvite.from) {
         from = [callInvite.from stringByReplacingOccurrencesOfString:@"client:" withString:@""];
     }
@@ -366,7 +379,7 @@ withCompletionHandler:(void (^)(void))completion {
 //}
 
 - (void)handleCallInviteCanceled:(TVOCallInvite *)callInvite {
-  NSLog(@"callInviteCanceled");
+  NSLog(@"Twilio - callInviteCanceled");
 
   [self performEndCallActionWithUUID:callInvite.uuid];
 
@@ -381,18 +394,18 @@ withCompletionHandler:(void (^)(void))completion {
   if (self.callInvite.to){
     [params setObject:self.callInvite.to forKey:@"to"];
   }
-  if (self.callInvite.state == TVOCallInviteStateCanceled) {
-    [params setObject:StateDisconnected forKey:@"call_state"];
-  } else if (self.callInvite.state == TVOCallInviteStateRejected) {
-    [params setObject:StateRejected forKey:@"call_state"];
-  }
+//  if (self.callInvite.state == TVOCancelledCallInvite) {
+//    [params setObject:StateDisconnected forKey:@"call_state"];
+//  } else if (self.callInvite.state == TVOCallInviteStateRejected) {
+//    [params setObject:StateRejected forKey:@"call_state"];
+//  }
   [self sendEventWithName:@"connectionDidDisconnect" body:params];
 
   self.callInvite = nil;
 }
 
 - (void)notificationError:(NSError *)error {
-  NSLog(@"notificationError: %@", [error localizedDescription]);
+  NSLog(@"Twilio - notificationError: %@", [error localizedDescription]);
 }
 
 #pragma mark - TVOCallDelegate
@@ -419,7 +432,7 @@ withCompletionHandler:(void (^)(void))completion {
 }
 
 - (void)call:(TVOCall *)call didFailToConnectWithError:(NSError *)error {
-  NSLog(@"Call failed to connect: %@", error);
+  NSLog(@"Twilio - Call failed to connect: %@", error);
 
   self.callKitCompletionCallback(NO);
   [self performEndCallActionWithUUID:call.uuid];
@@ -427,7 +440,7 @@ withCompletionHandler:(void (^)(void))completion {
 }
 
 - (void)call:(TVOCall *)call didDisconnectWithError:(NSError *)error {
-  NSLog(@"Call disconnected with error: %@", error);
+  NSLog(@"Twilio - Call disconnected with error: %@", error);
 
   [self performEndCallActionWithUUID:call.uuid];
   [self callDisconnected:error];
@@ -465,50 +478,56 @@ withCompletionHandler:(void (^)(void))completion {
   // The mode set by the Voice SDK is "VoiceChat" so the default audio route is the built-in receiver.
   // Use port override to switch the route.
   NSError *error = nil;
-  NSLog(@"toggleAudioRoute");
+  NSLog(@"Twilio - toggleAudioRoute");
 
   if (toSpeaker) {
     if (![[AVAudioSession sharedInstance] overrideOutputAudioPort:AVAudioSessionPortOverrideSpeaker
                                                             error:&error]) {
-      NSLog(@"Unable to reroute audio: %@", [error localizedDescription]);
+      NSLog(@"Twilio - Unable to reroute audio: %@", [error localizedDescription]);
     }
   } else {
     if (![[AVAudioSession sharedInstance] overrideOutputAudioPort:AVAudioSessionPortOverrideNone
                                                             error:&error]) {
-      NSLog(@"Unable to reroute audio: %@", [error localizedDescription]);
+      NSLog(@"Twilio - Unable to reroute audio: %@", [error localizedDescription]);
     }
   }
 }
 
 #pragma mark - CXProviderDelegate
 - (void)providerDidReset:(CXProvider *)provider {
-  NSLog(@"providerDidReset");
-  TwilioVoice.audioEnabled = YES;
+  NSLog(@"Twilio - providerDidReset");
+  //TwilioVoice.audioEnabled = YES;
+    self.audioDevice.enabled = YES;
+    
 }
 
 - (void)providerDidBegin:(CXProvider *)provider {
-  NSLog(@"providerDidBegin");
+  NSLog(@"Twilio - providerDidBegin");
 }
 
 - (void)provider:(CXProvider *)provider didActivateAudioSession:(AVAudioSession *)audioSession {
-  NSLog(@"provider:didActivateAudioSession");
-  TwilioVoice.audioEnabled = YES;
+  NSLog(@"Twilio - provider:didActivateAudioSession");
+//  TwilioVoice.audioEnabled = YES;
+    self.audioDevice.enabled = YES;
 }
 
 - (void)provider:(CXProvider *)provider didDeactivateAudioSession:(AVAudioSession *)audioSession {
-  NSLog(@"provider:didDeactivateAudioSession");
-  TwilioVoice.audioEnabled = NO;
+  NSLog(@"Twilio - provider:didDeactivateAudioSession");
+//  TwilioVoice.audioEnabled = NO;
+    self.audioDevice.enabled = NO;
 }
 
 - (void)provider:(CXProvider *)provider timedOutPerformingAction:(CXAction *)action {
-  NSLog(@"provider:timedOutPerformingAction");
+  NSLog(@"Twilio - provider:timedOutPerformingAction");
 }
 
 - (void)provider:(CXProvider *)provider performStartCallAction:(CXStartCallAction *)action {
-  NSLog(@"provider:performStartCallAction");
+  NSLog(@"Twilio - provider:performStartCallAction");
 
-  [TwilioVoice configureAudioSession];
-  TwilioVoice.audioEnabled = NO;
+//  [TwilioVoice configureAudioSession];
+//  TwilioVoice.audioEnabled = NO;
+    self.audioDevice.enabled = NO;
+    self.audioDevice.block();
 
   [self.callKitProvider reportOutgoingCallWithUUID:action.callUUID startedConnectingAtDate:[NSDate date]];
 
@@ -525,7 +544,7 @@ withCompletionHandler:(void (^)(void))completion {
 }
 
 - (void)provider:(CXProvider *)provider performAnswerCallAction:(CXAnswerCallAction *)action {
-  NSLog(@"provider:performAnswerCallAction");
+  NSLog(@"Twilio - provider:performAnswerCallAction");
 
   // RCP: Workaround from https://forums.developer.apple.com/message/169511 suggests configuring audio in the
   //      completion block of the `reportNewIncomingCallWithUUID:update:completion:` method instead of in
@@ -534,7 +553,8 @@ withCompletionHandler:(void (^)(void))completion {
 
   NSAssert([self.callInvite.uuid isEqual:action.callUUID], @"We only support one Invite at a time.");
 
-  TwilioVoice.audioEnabled = NO;
+//  TwilioVoice.audioEnabled = NO;
+    self.audioDevice.enabled = NO;
   [self performAnswerVoiceCallWithUUID:action.callUUID completion:^(BOOL success) {
     if (success) {
       [action fulfill];
@@ -547,11 +567,11 @@ withCompletionHandler:(void (^)(void))completion {
 }
 
 - (void)provider:(CXProvider *)provider performEndCallAction:(CXEndCallAction *)action {
-  NSLog(@"provider:performEndCallAction");
+  NSLog(@"Twilio - provider:performEndCallAction");
 
-  TwilioVoice.audioEnabled = NO;
-
-  if (self.callInvite && self.callInvite.state == TVOCallInviteStatePending) {
+//  TwilioVoice.audioEnabled = NO;
+ self.audioDevice.enabled = NO;
+  if (self.callInvite && self.call.state == TVOCallStateRinging) {
     [self sendEventWithName:@"callRejected" body:@"callRejected"];
     [self.callInvite reject];
     self.callInvite = nil;
@@ -574,6 +594,8 @@ withCompletionHandler:(void (^)(void))completion {
 #pragma mark - CallKit Actions
 - (void)performStartCallActionWithUUID:(NSUUID *)uuid handle:(NSString *)handle {
     //No Changes
+    NSLog(@"Twilio - uuid: %@", uuid);
+    NSLog(@"Twilio - handle: %@", handle);
   if (uuid == nil || handle == nil) {
     return;
   }
@@ -584,9 +606,9 @@ withCompletionHandler:(void (^)(void))completion {
 
   [self.callKitCallController requestTransaction:transaction completion:^(NSError *error) {
     if (error) {
-      NSLog(@"StartCallAction transaction request failed: %@", [error localizedDescription]);
+      NSLog(@"Twilio - StartCallAction transaction request failed: %@", [error localizedDescription]);
     } else {
-      NSLog(@"StartCallAction transaction request successful");
+      NSLog(@"Twilio - StartCallAction transaction request successful");
 
       CXCallUpdate *callUpdate = [[CXCallUpdate alloc] init];
       callUpdate.remoteHandle = callHandle;
@@ -599,6 +621,27 @@ withCompletionHandler:(void (^)(void))completion {
       [self.callKitProvider reportCallWithUUID:uuid updated:callUpdate];
     }
   }];
+}
+
+- (void)performVoiceCallWithUUID:(NSUUID *)uuid
+                          client:(NSString *)client
+                      completion:(void(^)(BOOL success))completionHandler {
+    //Add
+    __weak typeof(self) weakSelf = self;
+    
+    TVOConnectOptions *connectOptions = [TVOConnectOptions optionsWithAccessToken:[self fetchAccessToken] block:^(TVOConnectOptionsBuilder *builder) {
+        __strong typeof(self) strongSelf = weakSelf;
+        builder.params = _callParams;
+        builder.uuid = uuid;
+    }];
+    self.call = [TwilioVoice connectWithOptions:connectOptions delegate:self];
+    //---
+    //    self.call = [TwilioVoice call:[self fetchAccessToken]
+    //                                            params:_callParams
+    //                                              uuid:uuid
+    //                                          delegate:self];
+    
+    self.callKitCompletionCallback = completionHandler;
 }
 
 - (void)reportIncomingCallFrom:(NSString *)from withUUID:(NSUUID *)uuid {
@@ -615,12 +658,12 @@ withCompletionHandler:(void (^)(void))completion {
 
   [self.callKitProvider reportNewIncomingCallWithUUID:uuid update:callUpdate completion:^(NSError *error) {
     if (!error) {
-      NSLog(@"Incoming call successfully reported");
+      NSLog(@"Twilio - Incoming call successfully reported");
 
       // RCP: Workaround per https://forums.developer.apple.com/message/169511
-      [TwilioVoice configureAudioSession];
+//      [TwilioVoice configureAudioSession];
     } else {
-      NSLog(@"Failed to report incoming call successfully: %@.", [error localizedDescription]);
+      NSLog(@"Twilio - Failed to report incoming call successfully: %@.", [error localizedDescription]);
     }
   }];
 }
@@ -652,33 +695,15 @@ withCompletionHandler:(void (^)(void))completion {
     
     [self.callKitCallController requestTransaction:transaction completion:^(NSError *error) {
         if (error) {
-            NSLog(@"EndCallAction transaction request failed: %@", [error localizedDescription]);
+            NSLog(@"Twilio - EndCallAction transaction request failed: %@", [error localizedDescription]);
         }
         else {
-            NSLog(@"EndCallAction transaction request successful");
+            NSLog(@"Twilio - EndCallAction transaction request successful");
         }
     }];
 }
 
-- (void)performVoiceCallWithUUID:(NSUUID *)uuid
-                          client:(NSString *)client
-                      completion:(void(^)(BOOL success))completionHandler {
-    //Add
-    __weak typeof(self) weakSelf = self;
-    TVOConnectOptions *connectOptions = [TVOConnectOptions optionsWithAccessToken:[self fetchAccessToken] block:^(TVOConnectOptionsBuilder *builder) {
-        __strong typeof(self) strongSelf = weakSelf;
-        builder.params = @{kTwimlParamTo: strongSelf.outgoingValue.text};
-        builder.uuid = uuid;
-    }];
-      self.call = [TwilioVoice connectWithOptions:connectOptions delegate:self];
-    //---
-//    self.call = [TwilioVoice call:[self fetchAccessToken]
-//                                            params:_callParams
-//                                              uuid:uuid
-//                                          delegate:self];
 
-    self.callKitCompletionCallback = completionHandler;
-}
 
 - (void)performAnswerVoiceCallWithUUID:(NSUUID *)uuid
                             completion:(void(^)(BOOL success))completionHandler {
@@ -710,10 +735,10 @@ withCompletionHandler:(void (^)(void))completion {
 }
 
 - (void)handleAppTerminateNotification {
-  NSLog(@"handleAppTerminateNotification called");
+  NSLog(@"Twilio - handleAppTerminateNotification called");
 
   if (self.call) {
-    NSLog(@"handleAppTerminateNotification disconnecting an active call");
+    NSLog(@"Twilio - handleAppTerminateNotification disconnecting an active call");
     [self.call disconnect];
   }
 }
