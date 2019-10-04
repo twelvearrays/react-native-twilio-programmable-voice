@@ -287,10 +287,10 @@ withCompletionHandler:(void (^)(void))completion {
     
     // FROM Migration Docs
     if ([payload.dictionaryPayload[@"twi_message_type"] isEqualToString:@"twilio.voice.cancel"]) {
-        
+
         NSLog(@"Twilio - FAKE CALL ");
-        CXHandle *callHandle = [[CXHandle alloc] initWithType:CXHandleTypeGeneric value:@"alice"];
-        
+        CXHandle *callHandle = [[CXHandle alloc] initWithType:CXHandleTypePhoneNumber value:@"alice"];
+
         CXCallUpdate *callUpdate = [[CXCallUpdate alloc] init];
         callUpdate.remoteHandle = callHandle;
         callUpdate.supportsDTMF = YES;
@@ -298,22 +298,22 @@ withCompletionHandler:(void (^)(void))completion {
         callUpdate.supportsGrouping = NO;
         callUpdate.supportsUngrouping = NO;
         callUpdate.hasVideo = NO;
-        
+
         NSUUID *uuid = [NSUUID UUID];
-        
+
         [self.callKitProvider reportNewIncomingCallWithUUID:uuid update:callUpdate completion:^(NSError *error) {
-            
+
         }];
-        
+
         dispatch_async(dispatch_get_main_queue(), ^{
             CXEndCallAction *endCallAction = [[CXEndCallAction alloc] initWithCallUUID:uuid];
             CXTransaction *transaction = [[CXTransaction alloc] initWithAction:endCallAction];
-            
+
             [self.callKitCallController requestTransaction:transaction completion:^(NSError *error) {
-                
+
             }];
         });
-        
+
         return;
     }
     //
@@ -352,6 +352,28 @@ withCompletionHandler:(void (^)(void))completion {
         self.incomingPushCompletionCallback();
         self.incomingPushCompletionCallback = nil;
     }
+}
+
+//Add
+- (void)cancelledCallInviteReceived:(TVOCancelledCallInvite *)cancelledCallInvite error:(NSError *)error {
+    
+    /**
+     * The SDK may call `[TVONotificationDelegate callInviteReceived:error:]` asynchronously on the dispatch queue
+     * with a `TVOCancelledCallInvite` if the caller hangs up or the client encounters any other error before the called
+     * party could answer or reject the call.
+     */
+    
+    NSLog(@"Twilio - cancelledCallInviteReceived:");
+    
+    if (!self.callInvite ||
+        ![self.callInvite.callSid isEqualToString:cancelledCallInvite.callSid]) {
+        NSLog(@"Twilio - No matching pending CallInvite. Ignoring the Cancelled CallInvite");
+        return;
+    }
+    
+    [self performEndCallActionWithUUID:self.callInvite.uuid];
+    
+    self.callInvite = nil;
 }
 
 #pragma mark - TVONotificationDelegate
@@ -634,7 +656,7 @@ withCompletionHandler:(void (^)(void))completion {
         return;
     }
     
-    CXHandle *callHandle = [[CXHandle alloc] initWithType:CXHandleTypeGeneric value:handle];
+    CXHandle *callHandle = [[CXHandle alloc] initWithType:CXHandleTypePhoneNumber value:handle];
     CXStartCallAction *startCallAction = [[CXStartCallAction alloc] initWithCallUUID:uuid handle:callHandle];
     CXTransaction *transaction = [[CXTransaction alloc] initWithAction:startCallAction];
     
@@ -680,7 +702,7 @@ withCompletionHandler:(void (^)(void))completion {
 
 - (void)reportIncomingCallFrom:(NSString *)from withUUID:(NSUUID *)uuid {
     //No Changes
-    CXHandle *callHandle = [[CXHandle alloc] initWithType:CXHandleTypeGeneric value:from];
+    CXHandle *callHandle = [[CXHandle alloc] initWithType:CXHandleTypePhoneNumber value:from];
     
     CXCallUpdate *callUpdate = [[CXCallUpdate alloc] init];
     callUpdate.remoteHandle = callHandle;
@@ -704,23 +726,23 @@ withCompletionHandler:(void (^)(void))completion {
 
 // Replaced with function below
 - (void)performEndCallActionWithUUID:(NSUUID *)uuid {
-  if (uuid == nil) {
-    return;
-  }
-
-  UIDevice* device = [UIDevice currentDevice];
-  device.proximityMonitoringEnabled = NO;
-
-  CXEndCallAction *endCallAction = [[CXEndCallAction alloc] initWithCallUUID:uuid];
-  CXTransaction *transaction = [[CXTransaction alloc] initWithAction:endCallAction];
-
-  [self.callKitCallController requestTransaction:transaction completion:^(NSError *error) {
-    if (error) {
-      NSLog(@"EndCallAction transaction request failed: %@", [error localizedDescription]);
-    } else {
-      NSLog(@"EndCallAction transaction request successful");
+    if (uuid == nil) {
+        return;
     }
-  }];
+    
+    UIDevice* device = [UIDevice currentDevice];
+    device.proximityMonitoringEnabled = NO;
+    
+    CXEndCallAction *endCallAction = [[CXEndCallAction alloc] initWithCallUUID:uuid];
+    CXTransaction *transaction = [[CXTransaction alloc] initWithAction:endCallAction];
+    
+    [self.callKitCallController requestTransaction:transaction completion:^(NSError *error) {
+        if (error) {
+            NSLog(@"EndCallAction transaction request failed: %@", [error localizedDescription]);
+        } else {
+            NSLog(@"EndCallAction transaction request successful");
+        }
+    }];
 }
 
 //- (void)performEndCallActionWithUUID:(NSUUID *)uuid {
